@@ -28,14 +28,13 @@ OPTIONS = {
         ('Accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'),
     ],
     'outline-depth': 10,
+    # 'javascript-delay': '5000',
     'quiet': '',
 }
 
 HTML_TEXT = '!DOCTYPE html><html lang="en"><head>{head}</head><body>{body}</body></html>'
 HEAD_META = '<meta charset="{encoding}">'
 HEAD_CSS = '<link rel="stylesheet" href="{css_uri}">'
-
-__all__ = ['HTMLCreator', 'BaseCrawler']
 
 
 class HTMLCreator(object):
@@ -169,9 +168,9 @@ class BaseCrawler(object):
             if self.pre_download_img:
                 html = self.download_img(html)
             f_path = os.path.join(self.name, '.'.join([str(index), 'html']))
-            with open(f_path, 'wb') as f:
-                html = html if isinstance(html, bytes) else html.encode('utf-8')
-                f.write(html)
+            # with open(f_path, 'wb') as f:
+            #     html = html if isinstance(html, bytes) else html.encode('utf-8')
+            #     f.write(html)
             html_files.append(f_path)
 
         try:
@@ -191,6 +190,46 @@ class BaseCrawler(object):
             print('Spend time: {:.2f}s'.format(total_time))
 
 
+class PageCrawler(BaseCrawler):
+    def __init__(self, name, start_url, body_tag_name, pre_download_img=True, delete_html_file=False, **body_tag_attrs):
+        """
+            将一个HTML页面转成pdf可以如此简单
+            url = 'https://cs231n.github.io/convolutional-networks/'
+            body_tag_attrs = {'class': 'post'}
+            PageCrawler('convolutional-networks', url, body_tag_name='div', **body_tag_attrs).run()
+        :param name: 页面名称
+        :param start_url: 页面url
+        :param body_tag_name: 所要保存成pdf的html标签名
+        :param body_tag_attrs: 所要保存成pdf的html标签属性
+        """
+        super().__init__(name, start_url, pre_download_img, delete_html_file)
+        self.body_tag_name = body_tag_name
+
+        if 'class' in body_tag_attrs.keys():
+            body_tag_attrs['class_'] = body_tag_attrs['class']
+            body_tag_attrs.pop('class')
+        self.body_tag_attrs = body_tag_attrs
+
+    def parse_sections(self, resp):
+        yield self.start_url
+
+    def parse_body(self, resp):
+        soup = BeautifulSoup(resp.content, 'lxml')
+        creator = HTMLCreator()
+        # parse content
+        body = soup.find_all(self.body_tag_name, **self.body_tag_attrs)
+        if not body:
+            raise Exception('No content found!')
+        body = body[0]
+        creator.add_body(body)
+
+        # parse head's css
+        css_tag = soup.find_all('link', rel='stylesheet')
+        for c in css_tag:
+            creator.add_css(abs_url_path(c['href'], self.start_url))
+        return creator.create()
+
+
 def abs_url_path(rel_url, base_url):
     """
         将href路径转成绝对路径
@@ -208,3 +247,8 @@ def abs_url_path(rel_url, base_url):
         return '%s://%s%s' % (url_scheme, url_net_loc, rel_url)
     else:
         return '%s://%s%s/%s' % (url_scheme, url_net_loc, url_path, rel_url)
+
+if __name__ == '__main__':
+    url = 'http://www.cnblogs.com/ooon/p/5603869.html'
+    body_tag_attrs = {'class': 'post'}
+    PageCrawler('convolutional-networks', url, body_tag_name='div', **body_tag_attrs).run()

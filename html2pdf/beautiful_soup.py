@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # -*- coding:utf-8 -*-
-from .html_to_pdf import HTMLCreator
-from .html_to_pdf import BaseCrawler
-from .html_to_pdf import abs_url_path
+from html2pdf.html_to_pdf import HTMLCreator
+from html2pdf.html_to_pdf import BaseCrawler
+from html2pdf.html_to_pdf import abs_url_path
 from bs4 import BeautifulSoup
 
 
