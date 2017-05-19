@@ -10,11 +10,12 @@ class BSCrawler(BaseCrawler):
     def __init__(self, name, start_url):
         super().__init__(name, start_url)
 
-    def parse_sections(self, resp):
-        yield self.start_url
+    def parse_sections(self):
+        for u in self.start_urls:
+            yield u
 
-    def parse_body(self, resp):
-        soup = BeautifulSoup(resp.content, 'lxml')
+    def parse_body(self, url):
+        soup = BeautifulSoup(self.do_get(url), 'lxml')
         creator = HTMLCreator()
         # parse content
         body = soup.find_all('div', class_='body', role='main')
@@ -26,7 +27,7 @@ class BSCrawler(BaseCrawler):
         # parse head's css
         css_tag = soup.find_all('link', rel='stylesheet')
         for c in css_tag:
-            creator.add_css(abs_url_path(c['href'], self.start_url))
+            creator.add_css(abs_url_path(c['href'], url))
         return creator.create()
 
 

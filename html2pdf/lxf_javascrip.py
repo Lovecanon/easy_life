@@ -5,22 +5,24 @@ from bs4 import BeautifulSoup
 
 
 class NodeCrawler(html_to_pdf.BaseCrawler):
-    def parse_sections(self, resp):
+    def parse_sections(self):
         """
             处理多个页面生成一个pdf
         :param resp:
         :return: 要处理页面的url
         """
-        soup = BeautifulSoup(resp.content, 'lxml')
-        menu_tag = soup.find_all(class_='uk-nav-side')[1]
-        for li in menu_tag.find_all('li'):
-            section_url = li.a.get('href')
-            if not section_url.startswith('http'):
-                section_url = ''.join([self.domain, section_url])  # 补全为全路径
-            yield section_url
+        for u in self.start_urls:
+            resp = self.do_get(u)
+            soup = BeautifulSoup(resp.content, 'lxml')
+            menu_tag = soup.find_all(class_='uk-nav-side')[1]
+            for li in menu_tag.find_all('li'):
+                section_url = li.a.get('href')
+                if not section_url.startswith('http'):
+                    section_url = ''.join([self._get_domain(u), section_url])  # 补全为全路径
+                yield section_url
 
-    def parse_body(self, resp):
-        soup = BeautifulSoup(resp.content, 'lxml')
+    def parse_body(self, url):
+        soup = BeautifulSoup(self.do_get(url), 'lxml')
         creator = html_to_pdf.HTMLCreator()
         # parse content
         body = soup.find_all('div', class_='x-wiki-content')
@@ -35,7 +37,7 @@ class NodeCrawler(html_to_pdf.BaseCrawler):
         # change relative image url to absolute url
         imgs = body.find_all('img')
         for i in imgs:
-            i['src'] = html_to_pdf.abs_url_path(i['src'], self.start_url)
+            i['src'] = html_to_pdf.abs_url_path(i['src'], url)
 
         # add title
         center_tag = soup.new_tag('center')
@@ -48,7 +50,7 @@ class NodeCrawler(html_to_pdf.BaseCrawler):
         # parse head's css
         css_tag = soup.find_all('link', rel='stylesheet')
         for c in css_tag:
-            creator.add_css(html_to_pdf.abs_url_path(c['href'], self.start_url))
+            creator.add_css(html_to_pdf.abs_url_path(c['href'], url))
         return creator.create()
 
 

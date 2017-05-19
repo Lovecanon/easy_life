@@ -82,25 +82,26 @@ class HTMLCreator(object):
 
 
 class BaseCrawler(object):
-    def __init__(self, name, start_url, pre_download_img=False, delete_html_file=False):
+    def __init__(self, name, start_urls, pre_download_img=False, delete_html_file=False):
         """
             爬虫的基类
         :param name: 爬虫名字
-        :param start_url: 开始url
+        :param start_urls: 开始url
         :param pre_download_img: 是否预下载页面中包含的图片
         :param delete_html_file: 生成pdf后是否将html文件删除
         """
         self.name = name
-        self.start_url = start_url
+        self.start_urls = [start_urls] if isinstance(start_urls, str) else start_urls
         self.pre_download_img = pre_download_img
         self.delete_html_file = delete_html_file
-        # ParseResult(scheme='http', netloc='www.baidu.com', path='', params='', query='', fragment='')
-        self.domain = '{uri.scheme}://{uri.netloc}'.format(uri=requests.utils.urlparse(self.start_url))
 
         if not os.path.exists(self.name):
             os.mkdir(self.name)
 
-    def parse_sections(self, resp):
+    def _get_domain(self, url):
+        return '{uri.scheme}://{uri.netloc}'.format(uri=requests.utils.urlparse(url))
+
+    def parse_sections(self):
         """
             如果只是将一个页面转成pdf，则直接返回self.start_url即可
         :param resp:
@@ -108,7 +109,7 @@ class BaseCrawler(object):
         """
         raise NotImplementedError
 
-    def parse_body(self, resp):
+    def parse_body(self, url):
         """
             处理要生成pdf的页面
         :param resp:
@@ -128,7 +129,7 @@ class BaseCrawler(object):
             try:
                 resp = requests.get(url, headers=headers, timeout=timeout)
                 if resp.ok:
-                    return resp
+                    return resp.content
                 else:
                     raise Exception('Request [%s] error, code %d' % (url, resp.status_code))
             except Exception as e:
@@ -161,16 +162,15 @@ class BaseCrawler(object):
         start = time.time()
         print('Start to crawl...')
         html_files = []
-        resp = self.do_get(self.start_url)
 
-        for index, url in enumerate(self.parse_sections(resp)):
-            html = self.parse_body(self.do_get(url))
+        for index, url in enumerate(self.parse_sections()):
+            html = self.parse_body(url)
             if self.pre_download_img:
                 html = self.download_img(html)
             f_path = os.path.join(self.name, '.'.join([str(index), 'html']))
-            # with open(f_path, 'wb') as f:
-            #     html = html if isinstance(html, bytes) else html.encode('utf-8')
-            #     f.write(html)
+            with open(f_path, 'wb') as f:
+                html = html if isinstance(html, bytes) else html.encode('utf-8')
+                f.write(html)
             html_files.append(f_path)
 
         try:
@@ -210,11 +210,12 @@ class PageCrawler(BaseCrawler):
             body_tag_attrs.pop('class')
         self.body_tag_attrs = body_tag_attrs
 
-    def parse_sections(self, resp):
-        yield self.start_url
+    def parse_sections(self):
+        for u in self.start_urls:
+            yield u
 
-    def parse_body(self, resp):
-        soup = BeautifulSoup(resp.content, 'lxml')
+    def parse_body(self, url):
+        soup = BeautifulSoup(self.do_get(url), 'lxml')
         creator = HTMLCreator()
         # parse content
         body = soup.find_all(self.body_tag_name, **self.body_tag_attrs)
@@ -226,9 +227,8 @@ class PageCrawler(BaseCrawler):
         # parse head's css
         css_tag = soup.find_all('link', rel='stylesheet')
         for c in css_tag:
-            creator.add_css(abs_url_path(c['href'], self.start_url))
+            creator.add_css(abs_url_path(c['href'], url))
         return creator.create()
-
 
 def abs_url_path(rel_url, base_url):
     """
@@ -247,6 +247,7 @@ def abs_url_path(rel_url, base_url):
         return '%s://%s%s' % (url_scheme, url_net_loc, rel_url)
     else:
         return '%s://%s%s/%s' % (url_scheme, url_net_loc, url_path, rel_url)
+
 
 if __name__ == '__main__':
     url = 'http://www.cnblogs.com/ooon/p/5603869.html'

@@ -10,3 +10,4 @@ pdf样式如下：
 
 pdf样式如下：
 ![image](./PNG/beautiful_soup.PNG "效果图")
+
